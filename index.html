@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/@fingerprintjs/fingerprintjs@3/dist/fp.min.js"></script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DADO DE LA SUERTE - RED GENESIS</title>
+  <style>
+    #premios-container {
+      margin: 20px 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+    }
+    button:disabled {
+  opacity: 0.5;         /* se ve más clarito */
+  cursor: not-allowed;  /* cursor prohibido */
+}
+    .fila-premios {
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+    }
+    #dado {
+      font-size: 100px;
+      margin: 20px 0;
+      transition: transform 0.3s ease;
+    }
+    .dado-animado { animation: girarDado 3s ease; }
+    @keyframes girarDado {
+      0% { transform: rotate(0deg); }
+      25% { transform: rotate(180deg) scale(1.2); }
+      50% { transform: rotate(360deg); }
+      75% { transform: rotate(540deg) scale(1.1); }
+      100% { transform: rotate(720deg) scale(1); }
+    }
+    .cara-dado {
+      background-color: white;
+      color: black;
+      font-weight: bold;
+      border-radius: 12px;
+      padding: 10px;
+      width: 200px;
+      height: 70px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      font-size: 1.1rem;
+      box-shadow: 0 0 12px rgba(255, 255, 255, 0.3);
+    }
+    html, body {
+      margin: 0; padding: 0; height: 100%;
+      font-family: 'Arial Black', sans-serif;
+      text-transform: uppercase;
+      background: linear-gradient(to bottom right, #000010, #1a0033, #000000);
+      overflow: hidden;
+    }
+    body::before {
+      content: "";
+      position: fixed; inset: 0;
+      background: radial-gradient(white 0.7px, transparent 1px),
+                  radial-gradient(white 0.7px, transparent 1px);
+      background-size: 10px 10px, 20px 20px;
+      background-position: 0 0, 5px 5px;
+      opacity: 0.07; z-index: 0;
+    }
+    .pantalla {
+      display: none;
+      flex-direction: column;
+      justify-content: flex-start;
+      align-items: center;
+      height: 100%;
+      padding: 10px 20px 20px 20px;
+      text-align: center;
+      position: relative;
+      z-index: 1; color: white;
+    }
+    #pantalla-bienvenida { display: flex; }
+    input, button {
+      padding: 15px; margin-top: 15px; border: none; border-radius: 10px;
+      font-size: 1.2rem; width: 90%; max-width: 400px; text-align: center;
+    }
+    input::placeholder { text-transform: uppercase; text-align: center; }
+    #tirar-btn {
+      background-color: #ffd700; color: black; font-weight: bold; cursor: pointer;
+    }
+    #dado {
+      width: 100px; height: 100px; margin: 30px auto; background-color: white;
+      border-radius: 15px; box-shadow: 0 0 20px rgba(255,255,255,0.3);
+      display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(3, 1fr);
+      gap: 5px; justify-items: center; align-items: center; transition: transform 0.2s ease;
+    }
+    .punto { width: 15px; height: 15px; background-color: black; border-radius: 50%; }
+    .dado-girando { animation: girarDado 3s ease; }
+    #mensaje-premio {
+      font-size: 1.3rem; margin-top: 20px; background-color: rgba(255, 255, 255, 0.1);
+      padding: 15px; border-radius: 15px; color: #fff; text-align: center; white-space: pre-line;
+    }
+    .confeti { position: fixed; inset: 0; pointer-events: none; z-index: 999; }
+    h1, h2, p { margin: 10px 0; }
+    h1 { font-size: 1.5rem; }
+    h2 { font-size: 2.3rem; color: #ffd700; }
+    /* ===== Mobile polish ===== */
+/* ===== Ajustes mobile compact ===== */
+@media (max-width: 480px) {
+  .pantalla{
+    padding: 10px 10px calc(18px + env(safe-area-inset-bottom));
+    overflow-y: auto;
+  }
+
+  /* 2 columnas compactas para premios */
+  #premios-container{ gap: 8px; }
+  .fila-premios{
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  /* Tarjetas más chicas */
+  .cara-dado{
+    width: 42vw;          /* más angostas */
+    max-width: 180px;
+    height: 50px;         /* más bajas */
+    padding: 6px 8px;
+    font-size: .9rem;     /* texto más chico */
+    border-radius: 10px;
+  }
+
+  /* Dado y botón más compactos */
+  #dado{
+    width: 78px; height: 78px;
+    margin: 14px auto;
+    gap: 4px; border-radius: 12px;
+  }
+  .punto{ width: 11px; height: 11px; }
+
+  #tirar-btn{
+    width: 92%; max-width: 420px;
+    margin: 10px auto 8px;
+    padding: 12px 10px;
+    font-size: 1rem; border-radius: 12px;
+  }
+
+  /* Mensaje final sin desborde */
+  #mensaje-premio{
+    width: 92%;
+    margin: 10px auto 14px;
+    font-size: .95rem;
+    line-height: 1.25;
+  }
+}
+
+/* Para pantallas MUY chicas: 1 columna */
+@media (max-width: 360px){
+  .fila-premios{
+    grid-template-columns: 1fr; /* 1 por fila */
+  }
+  .cara-dado{
+    width: 90vw; max-width: none; height: 54px; font-size: .95rem;
+  }
+}
+
+/* Botón apagado cuando está deshabilitado */
+button:disabled{ opacity:.5; cursor:not-allowed; }
+/* ===== MOBILE: 3 y 3 fijo ===== */
+@media (max-width: 520px){
+  /* armamos una grilla 2 columnas y "aplanamos" las filas */
+  #premios-container{
+    display: grid;
+    grid-template-columns: 1fr 1fr; /* 2 columnas */
+    gap: 10px;
+    justify-items: center;
+  }
+  .fila-premios{
+    display: contents; /* << mezcla las 6 tarjetas en la grilla del padre */
+  }
+
+  /* tarjetas más compactas y fluidas */
+  .cara-dado{
+    width: 44vw;        /* ocupa ~mitad de pantalla */
+    max-width: 210px;
+    height: 56px;
+    padding: 8px 10px;
+    font-size: .95rem;
+    border-radius: 12px;
+  }
+
+  /* resto del layout un poco más compacto */
+  #dado{ width: 82px; height: 82px; gap: 4px; margin: 16px auto; }
+  .punto{ width: 11px; height: 11px; }
+  #tirar-btn{ width: 92%; margin: 12px auto 8px; padding: 12px 10px; font-size: 1rem; }
+  #mensaje-premio{ width: 92%; font-size: .95rem; line-height: 1.25; }
+  .pantalla{ padding: 12px 12px calc(18px + env(safe-area-inset-bottom)); overflow-y: auto; }
+}
+  </style>
+</head>
+<body>
+  <!-- 🎉 PANTALLA DE BIENVENIDA -->
+  <div id="pantalla-bienvenida" class="pantalla">
+    <h2>🌌 RED GENESIS 24HS 🌟</h2>
+    <h1>🚀 BIENVENIDO AL DADO DE LA SUERTE 🎲</h1>
+    <p>INGRESÁ TU USUARIO PARA JUGAR 👨‍🚀</p>
+    <input id="input-usuario" type="text" placeholder="ESCRIBÍ TU USUARIO" />
+    <button id="btn-ingresar">INGRESAR ✅</button>
+  </div>
+
+  <!-- 🎮 JUEGO PRINCIPAL -->
+  <div id="pantalla-juego" class="pantalla">
+    <div style="text-align: center; margin-bottom: 10px;">
+      <h2 style="color: #ffd700;">🌌 RED GENESIS 24HS 🌟</h2>
+      <p style="font-size: 1rem; color: white;">🎲 TIRÁ EL DADO Y QUE DEFINA LA SUERTE 💫</p>
+      <div id="info-superior">
+        <div id="usuario-nombre">👤 TIRADOR: -</div>
+        <div id="fecha-hora">🗓️ FECHA - ⏰ HORA</div>
+      </div>
+    </div>
+
+    <!-- premios -->
+    <div id="premios-container">
+      <div class="fila-premios">
+        <div class="cara-dado">1<br>1.000 GRATIS 🎉</div>
+        <div class="cara-dado">2<br>2.000 GRATIS 🎁</div>
+        <div class="cara-dado">3<br>3.000 GRATIS 💸</div>
+      </div>
+      <div class="fila-premios">
+        <div class="cara-dado">4<br>4.000 GRATIS 🔁</div>
+        <div class="cara-dado">5<br>5.000 GRATIS 🔐</div>
+        <div class="cara-dado">6<br>6.000 GRATIS 💰</div>
+      </div>
+    </div>
+
+    <!-- 🎲 DADO + BOTÓN + MENSAJE -->
+    <div id="dado" class="dado"></div>
+    <button id="tirar-btn">TIRAR DADO 🎲</button>
+    <div id="mensaje-premio"></div>
+  </div>
+
+  <canvas class="confeti" id="canvas-confeti"></canvas>
+
+  <script>
+    // =================== CONSTANTES ===================
+    const premios = [
+      "1.000 GRATIS 🎉",
+      "2.000 GRATIS 🎁",
+      "3.000 GRATIS 💸",
+      "4.000 GRATIS 🔁",
+      "5.000 GRATIS 🔐",
+      "6.000 GRATIS 💰"
+    ];
+
+       // 🔑 Tus credenciales
+  const SUPABASE_URL = 'https://ueiiyibsnmapzygpmeza.supabase.co';
+  const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVlaWl5aWJzbm1hcHp5Z3BtZXphIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTEzODc2NzMsImV4cCI6MjA2Njk2MzY3M30.8yDCfUXBhqeEyFvPL5Pz7W5WWlbK4N25UOEXx4n1hdo';
+
+  // ✅ Cliente Supabase y alias que usa tu código
+  const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+    auth: { persistSession: false }
+  });
+  window.client = sb; // por si en algún lado usás 'client'
+
+  // 🏷️ Nombre del casino EXACTO como lo escribiste
+  const CASINO = 'CASINO GENESIS DADOS';
+
+    // =================== HORA EN VIVO ===================
+    function actualizarHora() {
+      const ahora = new Date();
+      const opciones = { timeZone: "America/Argentina/Buenos_Aires", hour: "2-digit", minute: "2-digit", second: "2-digit" };
+      const horaArg = ahora.toLocaleTimeString('es-AR', opciones);
+      const fecha = ahora.toLocaleDateString('es-AR');
+      document.getElementById("fecha-hora").innerText = `🗓️ ${fecha} - ⏰ ${horaArg}`;
+    }
+    setInterval(actualizarHora, 1000);
+
+    // =================== UTIL FECHA & FP ===================
+    function fechaHoyAR() {
+      return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Argentina/Buenos_Aires', year:'numeric', month:'2-digit', day:'2-digit' }).format(new Date());
+    }
+    async function sha256hex(str){
+      const enc = new TextEncoder().encode(str);
+      const buf = await crypto.subtle.digest('SHA-256', enc);
+      return [...new Uint8Array(buf)].map(b=>b.toString(16).padStart(2,'0')).join('');
+    }
+    function getOrCreateSeed(){
+      let s = localStorage.getItem('rg_seed');
+      if(!s){ s = Math.random().toString(36).slice(2) + Date.now(); localStorage.setItem('rg_seed', s); }
+      return s;
+    }
+    async function getFingerprint(){
+      const bits = [
+        navigator.userAgent, navigator.language, navigator.platform,
+        screen.width+'x'+screen.height+'@'+(window.devicePixelRatio||1),
+        Intl.DateTimeFormat().resolvedOptions().timeZone || 'tz',
+        getOrCreateSeed()
+      ].join('|');
+      return await sha256hex(bits);
+    }
+
+    // =================== ESTADO ===================
+    let usuario = "";
+    let fingerprint = "";
+
+    // =================== UI ===================
+    document.getElementById('btn-ingresar').addEventListener('click', iniciarJuego);
+    document.getElementById('tirar-btn').addEventListener('click', tirarDado);
+
+    function mostrarCara(cara) {
+      const dado = document.getElementById("dado");
+      dado.innerHTML = "";
+
+      if (cara === null) {
+        const g = document.createElement("div");
+        g.style.fontSize = "2.5rem";
+        g.style.fontWeight = "bold";
+        g.style.color = "black";
+        g.innerText = "G";
+        g.style.gridColumn = "2";
+        g.style.gridRow = "2";
+        dado.appendChild(g);
+        return;
+      }
+
+      const configuraciones = {
+        1: [4],
+        2: [0, 8],
+        3: [0, 4, 8],
+        4: [0, 2, 6, 8],
+        5: [0, 2, 4, 6, 8],
+        6: [0, 2, 3, 5, 6, 8]
+      };
+      const puntos = configuraciones[cara + 1];
+
+      for (let i = 0; i < 9; i++) {
+        const dot = document.createElement("div");
+        if (puntos.includes(i)) {
+          dot.className = "punto";
+          dado.appendChild(dot);
+        } else {
+          const empty = document.createElement("div");
+          dado.appendChild(empty);
+        }
+      }
+    }
+
+    // =================== BLOQUEO ===================
+    async function yaJugoHoy(username, fp) {
+      try {
+        const { data, error } = await sb
+          .from('giros')
+          .select('usuario,premio')
+          .eq('fecha', fechaHoyAR())
+          .eq('casino', CASINO)
+          .or(`usuario.eq.${username},fingerprint.eq.${fp}`)
+          .limit(1)
+          .maybeSingle();
+        if (error && error.code !== 'PGRST116') { // ignore no rows
+          console.error('select error', error);
+          return null;
+        }
+        return data || null;
+      } catch (e) {
+        console.error('select ex', e);
+        return null;
+      }
+    }
+
+    async function registrarGiro(username, fp, premioTxt) {
+  // 👉 hora local AR (solo la hora)
+  const HUSO = 'America/Argentina/Buenos_Aires';
+  const horaLocal = new Intl.DateTimeFormat('es-AR', {
+    timeZone: HUSO,
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+    hour12: false
+  }).format(new Date());
+
+  const payload = {
+    usuario: username,
+    fingerprint: fp,
+    premio: premioTxt,          // texto exacto del premio
+    fecha: fechaHoyAR(),        // YYYY-MM-DD en AR (ya lo tenías ok)
+    hora: horaLocal,            // ⬅️ queda como 13:26:23 (hora AR)
+    casino: CASINO
+  };
+
+  const { error } = await sb.from('giros').insert([payload]);
+  if (error) throw error;
+}
+
+    // =================== FLUJO ===================
+    async function iniciarJuego() {
+      const input = document.getElementById("input-usuario");
+      usuario = (input.value || '').trim();
+      if (!usuario) { input.style.border = '2px solid #f33'; return; }
+      input.style.border = '';
+
+      fingerprint = await getFingerprint();
+
+      document.getElementById("usuario-nombre").innerText = `👤 TIRADOR: ${usuario}`;
+      document.getElementById("pantalla-bienvenida").style.display = "none";
+      document.getElementById("pantalla-juego").style.display = "flex";
+      // llevar el scroll al inicio y evitar que quede “a mitad”
+window.scrollTo({ top: 0, behavior: 'instant' });
+document.getElementById("pantalla-juego").scrollIntoView({ block: 'start' });
+      actualizarHora();
+      mostrarCara(null);
+
+      const jugo = await yaJugoHoy(usuario, fingerprint);
+      const btn = document.getElementById('tirar-btn');
+      const msg = document.getElementById('mensaje-premio');
+      if (jugo) {
+        btn.disabled = true;
+        msg.innerText = `⛔ YA JUGASTE HOY COMO ${jugo.usuario.toUpperCase()} — Premio: ${jugo.premio}`;
+      } else {
+        btn.disabled = false;
+        msg.innerText = '';
+      }
+    }
+
+    async function tirarDado() {
+      const dado = document.getElementById("dado");
+      const mensaje = document.getElementById("mensaje-premio");
+      const boton = document.getElementById("tirar-btn");
+
+      // revalidación última
+      const jugo = await yaJugoHoy(usuario, fingerprint);
+      if (jugo) {
+        mensaje.innerText = `⛔ YA JUGASTE HOY — Premio: ${jugo.premio}`;
+        boton.disabled = true;
+        return;
+      }
+
+      boton.disabled = true;
+      mensaje.innerText = "";
+
+      let vueltas = 0;
+      const intervalo = setInterval(() => {
+        const caraRandom = Math.floor(Math.random() * 6);
+        mostrarCara(caraRandom);
+        dado.style.transform = `rotate(${Math.random() * 720}deg)`;
+        vueltas++;
+        if (vueltas >= 30) clearInterval(intervalo);
+      }, 100);
+
+      setTimeout(async () => {
+        const resultado = Math.floor(Math.random() * 6);
+        mostrarCara(resultado);
+        dado.style.transform = "rotate(0deg)";
+
+        const premioTxt = premios[resultado]; // guarda el texto exacto
+        const mensajeTexto = `🎉 FELICIDADES ${usuario} 🎉\n🎁 GANASTE: ${premioTxt}\n📸 SACÁ CAPTURA Y CONTACTANOS POR WHATSAPP 📲`;
+        mensaje.innerText = mensajeTexto;
+
+        lanzarConfeti();
+
+        try {
+          await registrarGiro(usuario, fingerprint, premioTxt);
+        } catch (e) {
+          console.error(e);
+          mensaje.innerText += `\n⚠️ No se pudo registrar la jugada. Intentá más tarde.`;
+        }
+      }, 3000);
+    }
+
+    // =================== CONFETI ===================
+    function lanzarConfeti() {
+      const canvas = document.getElementById("canvas-confeti");
+      const ctx = canvas.getContext("2d");
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+
+      const cantidad = 150;
+      const confetis = [];
+
+      for (let i = 0; i < cantidad; i++) {
+        confetis.push({
+          x: Math.random() * canvas.width,
+          y: Math.random() * canvas.height - canvas.height,
+          r: Math.random() * 6 + 4,
+          d: Math.random() * cantidad,
+          color: Math.random() > 0.5 ? "#FFD700" : "#C0C0C0",
+          tilt: Math.floor(Math.random() * 10) - 10
+        });
+      }
+
+      function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        for (let i = 0; i < cantidad; i++) {
+          const c = confetis[i];
+          ctx.beginPath();
+          ctx.lineWidth = c.r / 2;
+          ctx.strokeStyle = c.color;
+          ctx.moveTo(c.x + c.tilt + c.r / 4, c.y);
+          ctx.lineTo(c.x + c.tilt, c.y + c.tilt + c.r / 4);
+          ctx.stroke();
+        }
+        actualizar();
+      }
+
+      function actualizar() {
+        for (let i = 0; i < cantidad; i++) {
+          const c = confetis[i];
+          c.y += Math.cos(c.d) + 1 + c.r / 2;
+          if (c.y > canvas.height) {
+            c.y = -10;
+            c.x = Math.random() * canvas.width;
+          }
+        }
+      }
+
+      setInterval(draw, 20);
+    }
+  </script>
+</body>
+</html>
